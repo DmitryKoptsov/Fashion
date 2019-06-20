@@ -18,6 +18,7 @@ ___________________________________
 
 Одна эпоха проходит за 13 часов.(Узнал что стоит обновить куду, должно работать быстрее)
 
-|Date|Weights file name|Runtime|IoU|
+|Date|Model|Runtime|IoU|
 |-|-|-|-|
-|18.06|model_1_40000_iter.pkl|13h(CUDA V7.5.17)|0.145|
+|18.06|Mask-RCNN with body|13h|0.1416|
+|20.06|Mask-RCNN only heads|13h|0.1416|
