@@ -2,7 +2,7 @@ import math
 import sys
 import time
 import torch
-
+from tqdm import tqdm
 import torchvision.models.detection.mask_rcnn
 
 from coco_utils import get_coco_api_from_dataset
@@ -23,9 +23,9 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, train_writer,p
 
         lr_scheduler = utils.warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
     model_save_timer = 0
-    for images, targets in metric_logger.log_every(data_loader, print_freq, header): 
+    for images, targets in tqdm(metric_logger.log_every(data_loader, print_freq, header)): 
         model_save_timer += 1
-        if model_save_timer % 5000 == 0:
+        if model_save_timer % 10000 == 0:
             torch.save(model.state_dict(), f'./models_weith/model_{run}_{model_save_timer*2}_iter.pkl')
             
         images = list(image.to(device) for image in images)
@@ -73,7 +73,7 @@ def _get_iou_types(model):
 
 
 @torch.no_grad()
-def evaluate(model, data_loader, device):
+def evaluate(model, data_loader, device,epoch,test_writer):
     n_threads = torch.get_num_threads()
     # FIXME remove this and make paste_masks_in_image run on the GPU
     torch.set_num_threads(1)
@@ -81,20 +81,22 @@ def evaluate(model, data_loader, device):
     model.eval()
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = 'Test:'
-
+    
     coco = get_coco_api_from_dataset(data_loader.dataset)
     iou_types = _get_iou_types(model)
     coco_evaluator = CocoEvaluator(coco, iou_types)
+    
 
     for image, targets in metric_logger.log_every(data_loader, 100, header):
         image = list(img.to(device) for img in image)
-        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+        targets = [{k: v.to(device) for k, v in t.items() if k != 'resizes'} for t in targets]
 
+        
         torch.cuda.synchronize()
         model_time = time.time()
         outputs = model(image)
-
-        outputs = [{k: v.to(cpu_device) for k, v in t.items()} for t in outputs]
+        
+        outputs = [{k: v.to(cpu_device) for k, v in t.items() if k != 'resizes'} for t in outputs]
         model_time = time.time() - model_time
 
         res = {target["image_id"].item(): output for target, output in zip(targets, outputs)}
@@ -111,5 +113,6 @@ def evaluate(model, data_loader, device):
     # accumulate predictions from all images
     coco_evaluator.accumulate()
     coco_evaluator.summarize()
+    test_writer.add_scalar('IoU', coco_evaluator.coco_eval['segm'].stats[0], global_step=epoch)
     torch.set_num_threads(n_threads)
     return coco_evaluator
