@@ -20,4 +20,4 @@ ___________________________________
 
 |Date|Weights file name|Runtime|IoU|
 |-|-|-|-|
-|18.06|model_1_40000_iter.pkl|13h(CUDA V7.5.17)|0.10705|
+|18.06|model_1_40000_iter.pkl|13h(CUDA V7.5.17)|0.145|
