@@ -106,18 +106,20 @@ def get_model_instance_segmentation(num_classes):
     return model
 
 def train(train_csv,tens_board_dir,num_epochs=10,run=''):    
-    train_writer = SummaryWriter(tens_board_dir)    
+    train_writer = SummaryWriter('/data/materialist/tensr_board/train') 
+    test_writer = SummaryWriter('/data/materialist/tensr_board/val')    
+    
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    num_classes = 35
-    dataset = Dataset(train_csv)
-    dataset_test = Dataset(train_csv)
-    indices = torch.randperm(len(dataset)).tolist()
-
-    dataset = torch.utils.data.Subset(dataset, indices[:-500])
-    dataset_test = torch.utils.data.Subset(dataset_test, indices[-500:])
+    num_classes = 47
+    indices = torch.randperm(len(train_csv)).tolist()
+    val = 5000
+    dataset = Dataset(train_csv.loc[indices[:-val]].reset_index())
+    dataset_test = Dataset(train_csv.loc[indices[-val:]].reset_index())
+    dataset = torch.utils.data.Subset(dataset, np.arange(len(indices[:-val])))
+    dataset_test = torch.utils.data.Subset(dataset_test, np.arange(val))
 
     data_loader = DataLoader(
-        dataset, batch_size=2, shuffle=True, num_workers=4,
+        dataset, batch_size=1, shuffle=True, num_workers=4,
         collate_fn=utils.collate_fn)
 
     data_loader_test = DataLoader(
@@ -126,8 +128,11 @@ def train(train_csv,tens_board_dir,num_epochs=10,run=''):
 
     model = get_model_instance_segmentation(num_classes)
 
-    model.load_state_dict(torch.load('model.pkl'))
     model.to(device)
+    for n,i in enumerate(model.parameters()):
+        if n < 69:
+            i.requires_grad = False	
+
     params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.SGD(params, lr=0.005,
                                 momentum=0.9, weight_decay=0.0005)
@@ -136,24 +141,18 @@ def train(train_csv,tens_board_dir,num_epochs=10,run=''):
                                                    gamma=0.1)
 
     for epoch in range(num_epochs):
-        train_one_epoch(model, optimizer, data_loader, device, epoch, train_writer,print_freq=10,run=run)
+        train_one_epoch(model, optimizer, data_loader, device, epoch, train_writer,print_freq=100,run=run)
         lr_scheduler.step()
-        evaluate(model, data_loader_test, device=device)
+        evaluate(model, data_loader_test, device,epoch,test_writer)
        
-
-
-    
-    
-    
     
 if __name__ == "__main__":
     args = _parse_args()
     print('Готовим датафрейм')
-    train_csv  = pd.read_csv(args.datadir + "train_csv.csv")
-    train_csv['ClassId'] = train_csv['ClassId'].str.split('_').str[0].astype(int)
-    train_csv = train_csv[~train_csv['ClassId'].isin(np.arange(12))]
-    train_csv['ClassId'] = train_csv['ClassId'] - 12 
-    train_csv['EncodedPixels'] = train_csv['EncodedPixels'].apply(lambda x: [int(i) for i in x.split(' ')])
-    train_csv = train_csv.groupby(['ImageId',"Height","Width"],as_index=False).agg(list)
+#     train_csv  = pd.read_csv(args.datadir + "train_csv.csv")
+#     train_csv['ClassId'] = train_csv['ClassId'].str.split('_').str[0].astype(int)
+#     train_csv['EncodedPixels'] = train_csv['EncodedPixels'].apply(lambda x: [int(i) for i in x.split(' ')])
+#     train_csv = train_csv.groupby(['ImageId',"Height","Width"],as_index=False).agg(list)
+    train_csv = pd.read_pickle(args.datadir + 'train_csv.pkl')
     print('Начинаем тренировку')
     train(train_csv,args.tens_board_dir,int(args.epochs),args.run)
