@@ -22,3 +22,4 @@ ___________________________________
 |20.06|Mask-RCNN only heads|6h|0.1296|
 |24.06|Mask-RCNN head after body|6h + 13h|0.146|
 |24.06|Mask-RCNN body after head|13h + 6h|0.1693|
+|25.06|Mask-RCNN body after head|13h + 6h * 2|0.172|
